@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Хімічний детектив: Сліди у розчині</title>
+    <!-- Підключення Tailwind CSS для сучасного адаптивного інтерфейсу -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Підключення Tone.js для синтезу звукових ефектів без зовнішніх файлів -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Підключення Google Fonts (Inter та JetBrains Mono для хімічних формул) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Базові налаштування шрифтів та плавності */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #0f172a, #020617);
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .chem-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Анімація плавання йонів у розчині */
+        @keyframes floatIon {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(6px, -8px) rotate(3deg); }
+            50% { transform: translate(-5px, -12px) rotate(-2deg); }
+            75% { transform: translate(-8px, 4px) rotate(2deg); }
+        }
+
+        .ion-bubble {
+            animation: floatIon 6s ease-in-out infinite;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, opacity 0.4s ease;
+            cursor: pointer;
+        }
+
+        .ion-bubble:hover {
+            transform: scale(1.12) !important;
+            z-index: 20;
+        }
+
+        /* Стан виділеного активного йона (той, що вступає в реакцію) */
+        .ion-selected {
+            ring: 4px;
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.6);
+            transform: scale(1.15) !important;
+            border-color: #38bdf8 !important;
+        }
+
+        /* Стан викресленого йона-спостерігача */
+        .ion-spectator {
+            opacity: 0.35;
+            filter: grayscale(70%);
+            transform: scale(0.9) !important;
+        }
+
+        .ion-spectator::after {
+            content: '';
+            position: absolute;
+            width: 110%;
+            height: 3px;
+            background-color: #ef4444;
+            transform: rotate(-35deg);
+            border-radius: 2px;
+        }
+
+        /* Анімація бульбашок газу в лабораторній склянці */
+        @keyframes riseBubble {
+            0% { transform: translateY(0) scale(0.6); opacity: 0; }
+            30% { opacity: 0.8; }
+            100% { transform: translateY(-220px) scale(1.2); opacity: 0; }
+        }
+
+        .gas-particle {
+            position: absolute;
+            bottom: 20px;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(148,163,184,0.3));
+            border-radius: 50%;
+            pointer-events: none;
+            animation: riseBubble 2.2s ease-in infinite;
+        }
+
+        /* Анімація випадання осаду на дно склянки */
+        @keyframes settlePrecipitate {
+            0% { height: 0px; opacity: 0; }
+            100% { height: 34px; opacity: 0.95; }
+        }
+
+        .precipitate-layer {
+            animation: settlePrecipitate 1.5s ease-out forwards;
+        }
+
+        /* Стилізація лабораторної склянки */
+        .beaker-glass {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.08) 100%);
+            box-shadow: inset 0 0 30px rgba(56, 189, 248, 0.15), 0 20px 40px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+        }
+
+        .liquid-body {
+            transition: background 1.2s ease;
+        }
+
+        /* Кнопки з об'ємним ефектом для зручності на онлайн-уроці */
+        .btn-detective {
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        }
+        .btn-detective:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+        }
+        .btn-detective:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+    </style>
+</head>
+<body class="flex flex-col justify-between p-3 sm:p-6">
+
+    <!-- Верхня панель: Заголовок справи, прогрес та індикатор режиму -->
+    <header class="max-w-6xl w-full mx-auto bg-slate-900/80 border border-slate-700/70 rounded-2xl p-4 sm:px-6 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+        <div class="flex items-center gap-3">
+            <!-- Іконка лупи / колби SVG -->
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shrink-0">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                    Хімічний детектив: Сліди у розчині
+                    <span class="hidden md:inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Рівень НМТ • 11 клас</span>
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-400">Поглиблений аналіз реакцій йонного обміну у водних розчинах</p>
+            </div>
+        </div>
+
+        <!-- Панель рахунку та швидкого вибору справи -->
+        <div class="flex items-center gap-3 sm:gap-5">
+            <button id="toggleSoundBtn" title="Увімкнути/вимкнути звук" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 transition">
+                <svg id="soundOnIcon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                </svg>
+                <svg id="soundOffIcon" class="w-5 h-5 hidden text-rose-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                </svg>
+            </button>
+
+            <button id="openSolubilityBtn" class="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition">
+                <span>📋</span> Підказка розчинності
+            </button>
+
+            <div class="bg-slate-800/90 border border-slate-700 rounded-xl px-4 py-1.5 text-right">
+                <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Розкрито справ</div>
+                <div class="text-base sm:text-lg font-extrabold text-emerald-400"><span id="scoreDisplay">0</span> / <span id="totalCasesDisplay">6</span></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Навігація по справах (для зручного перемикання викладачем та учнем) -->
+    <nav id="caseSelectorBar" class="max-w-6xl w-full mx-auto mt-3 flex flex-wrap gap-2 justify-center sm:justify-start">
+        <!-- Кнопки справ генеруються динамічно через JS -->
+    </nav>
+
+    <!-- Основна робоча область -->
+    <main class="max-w-6xl w-full mx-auto my-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch flex-grow">
+        
+        <!-- Ліва колонка: Лабораторна склянка з розчином йонів (7 колонок на десктопі) -->
+        <section class="lg:col-span-7 bg-slate-900/75 border border-slate-700/70 rounded-2xl p-5 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+            
+            <!-- Заголовок справи та умова -->
+            <div>
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span id="caseBadge" class="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        Справа №1 • Реакція обміну
+                    </span>
+                    <span id="caseStatusBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-400">
+                        В процесі розслідування
+                    </span>
+                </div>
+                <h2 id="caseTitle" class="text-xl sm:text-2xl font-bold text-white mb-1">Змішування барій хлориду та натрій сульфату</h2>
+                <p id="casePrompt" class="text-sm text-slate-300 leading-relaxed">
+                    У склянці змішали розчини <span class="chem-font text-sky-300 font-bold">BaCl₂</span> та <span class="chem-font text-sky-300 font-bold">Na₂SO₄</span>. Знайди «активні» йони, які зв'яжуться між собою та зникнуть із розчину!
+                </p>
+            </div>
+
+            <!-- Панель вибору інструменту (для зручної роботи мишкою на онлайн-уроці) -->
+            <div class="my-4 bg-slate-800/80 border border-slate-700 rounded-xl p-2 flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-semibold text-slate-400 px-2">Інструмент детектива:</span>
+                <div class="flex gap-2 flex-grow sm:flex-grow-0">
+                    <button id="toolSelectBtn" class="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-sky-600 text-white shadow transition">
+                        <span>🔍</span> Виділити йони-реагенти
+                    </button>
+                    <button id="toolCrossBtn" class="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-slate-600 transition">
+                        <span>❌</span> Викреслити спостерігачів
+                    </button>
+                </div>
+            </div>
+
+            <!-- Візуальна лабораторна склянка з йонами -->
+            <div class="relative flex-grow min-h-[290px] sm:min-h-[330px] flex items-center justify-center my-2">
+                <!-- Контейнер склянки -->
+                <div id="beakerContainer" class="beaker-glass relative w-full max-w-md h-[290px] sm:h-[320px] rounded-b-[44px] rounded-t-xl border-x-4 border-b-4 border-slate-400/40 overflow-hidden flex items-center justify-center">
+                    
+                    <!-- Верхній обідок склянки -->
+                    <div class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-slate-400/20 via-white/30 to-slate-400/20 border-b border-white/20"></div>
+                    
+                    <!-- Рідина в склянці -->
+                    <div id="liquidFill" class="liquid-body absolute bottom-0 left-0 right-0 h-[84%] bg-gradient-to-b from-sky-500/20 to-blue-600/35 border-t border-sky-300/30"></div>
+
+                    <!-- Контейнер для бульбашок газу (активується при виділенні газу) -->
+                    <div id="gasContainer" class="absolute inset-0 pointer-events-none hidden"></div>
+
+                    <!-- Шар осаду на дні склянки (активується при утворенні осаду) -->
+                    <div id="precipitateLayer" class="hidden absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-100 via-slate-200 to-slate-300/80 border-t-2 border-white shadow-inner z-10 flex items-center justify-center">
+                        <span id="precipitateLabel" class="text-xs font-extrabold text-slate-800 chem-font tracking-wide"></span>
+                    </div>
+
+                    <!-- Сітка розміщення йонів у розчині -->
+                    <div id="ionsArena" class="relative z-20 w-full h-[80%] mt-8 p-4 grid grid-cols-3 sm:grid-cols-4 gap-3 place-items-center">
+                        <!-- Бульбашки йонів генеруються динамічно -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Нижня підказка керування -->
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 pt-2 border-t border-slate-800">
+                <span>💡 Клікайте по йонах у склянці, щоб зібрати докази реакції.</span>
+                <button id="resetBeakerBtn" class="text-sky-400 hover:text-sky-300 font-semibold underline">Очистити склянку</button>
+            </div>
+        </section>
+
+        <!-- Права колонка: Протокол розслідування (5 колонок на десктопі) -->
+        <section class="lg:col-span-5 bg-slate-900/75 border border-slate-700/70 rounded-2xl p-5 flex flex-col justify-between shadow-2xl">
+            <div class="space-y-5">
+                <div class="border-b border-slate-700/80 pb-3">
+                    <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                        <span>📁</span> Протокол експертизи
+                    </h3>
+                    <p class="text-xs text-slate-400">Заповніть висновки на основі аналізу розчину</p>
+                </div>
+
+                <!-- Крок 1: Ознака перебігу реакції -->
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-sky-400 mb-2">
+                        Крок 1. Який доказ / ознаку виявлено у склянці?
+                    </label>
+                    <div id="evidenceOptions" class="grid grid-cols-1 gap-2">
+                        <!-- Варіанти генеруються динамічно -->
+                    </div>
+                </div>
+
+                <!-- Крок 2: Конструктор скороченого йонного рівняння -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-sky-400">
+                            Крок 2. Зберіть скорочене йонне рівняння:
+                        </label>
+                        <button id="clearEqBuilderBtn" type="button" class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold underline">
+                            Скинути рядок
+                        </button>
+                    </div>
+                    
+                    <!-- Поле зібраного рівняння -->
+                    <div id="assembledEquationArea" class="min-h-[54px] p-2.5 rounded-xl bg-slate-950/90 border-2 border-dashed border-slate-600 flex flex-wrap items-center gap-1.5 mb-2.5">
+                        <span class="text-xs text-slate-500 italic">Натискайте на блоки нижче, щоб побудувати рівняння...</span>
+                    </div>
+
+                    <!-- Банк плиток для конструювання рівняння (включає пастки НМТ) -->
+                    <div id="equationTilesPool" class="flex flex-wrap gap-1.5">
+                        <!-- Плитки генеруються динамічно -->
+                    </div>
+                </div>
+
+                <!-- Блок зворотного зв'язку та пояснення -->
+                <div id="feedbackBox" class="hidden rounded-xl p-3.5 text-sm border transition-all">
+                    <div id="feedbackTitle" class="font-bold mb-1"></div>
+                    <div id="feedbackText" class="text-xs sm:text-sm leading-relaxed opacity-95"></div>
+                </div>
+            </div>
+
+            <!-- Кнопки дій -->
+            <div class="pt-4 mt-4 border-t border-slate-800 flex items-center gap-3">
+                <button id="checkCaseBtn" class="btn-detective flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm sm:text-base">
+                    Перевірити докази
+                </button>
+                <button id="nextCaseBtn" class="hidden btn-detective py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm sm:text-base flex items-center gap-1.5">
+                    Далі <span>➔</span>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Модальне вікно: Міні-довідник розчинності та індикаторів (за матеріалами уроку) -->
+    <div id="solubilityModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                <h3 class="text-lg font-extrabold text-white">📋 Шпаргалка хімічного детектива</h3>
+                <button id="closeSolubilityBtn" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">✕</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm">
+                <div class="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700">
+                    <h4 class="font-bold text-amber-400 mb-2">Сильні електроліти (пишемо у вигляді йонів):</h4>
+                    <ul class="space-y-1.5 text-slate-300">
+                        <li>• <strong>Сильні кислоти:</strong> <span class="chem-font text-white">HCl, HBr, HI, HNO₃, H₂SO₄</span></li>
+                        <li>• <strong>Луги (розчинні основи):</strong> <span class="chem-font text-white">NaOH, KOH, Ba(OH)₂, Ca(OH)₂*</span></li>
+                        <li>• <strong>Розчинні солі:</strong> дисоціюють повністю на катіон та аніон.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-slate-800/70 p-3.5 rounded-xl border border-slate-700">
+                    <h4 class="font-bold text-rose-400 mb-2">Пастки НМТ (НЕ розкладаємо на йони!):</h4>
+                    <ul class="space-y-1.5 text-slate-300">
+                        <li>• <strong>Слабкі кислоти:</strong> <span class="chem-font text-white">H₃PO₄, HF, H₂S, HNO₂, CH₃COOH</span></li>
+                        <li>• <strong>Нестійкі кислоти (газ + вода):</strong> <span class="chem-font text-white">H₂CO₃ → CO₂↑ + H₂O</span>; <span class="chem-font text-white">H₂SO₃ → SO₂↑ + H₂O</span></li>
+                        <li>• <strong>Осади та нерозчинні реактанти:</strong> <span class="chem-font text-white">Cu(OH)₂, CaCO₃, AgCl, BaSO₄</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="text-right pt-2">
+                <button id="closeSolubilityBtnBottom" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm">Зрозуміло, до роботи!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальне вікно завершення всіх розслідувань -->
+    <div id="victoryModal" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-emerald-500/50 rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-4">
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-3xl">
+                🏆
+            </div>
+            <h2 class="text-2xl font-extrabold text-white">Усі справи НМТ розкрито!</h2>
+            <p class="text-sm text-slate-300 leading-relaxed">
+                Ви безпомилково відрізнили сильні електроліти від слабких, врахували розчинність вихідних речовин і не потрапили в жодну пастку скорочення коефіцієнтів!
+            </p>
+            <div class="bg-slate-800/80 rounded-xl p-3 text-emerald-400 font-bold text-lg">
+                Результат: <span id="finalScoreText">6 з 6</span> справ
+            </div>
+            <button id="restartAllBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-base shadow-lg">
+                Пройти розслідування ще раз
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * База даних детективних справ рівня 11 класу / НМТ.
+         * Усі вихідні речовини — виключно розчинні сильні електроліти, тому в розчині
+         * присутні ЛИШЕ вільні йони (жодних молекул чи осадів до початку реакції).
+         * Складність підвищено завдяки підступним випадкам НМТ та конструктору рівнянь.
+         */
+        const CASES = [
+            {
+                id: 1,
+                category: "Рівень НМТ • Кисла сіль + Луг (надлишок)",
+                title: "Справа №1: Нейтралізація гідрогенкарбонат-йона",
+                prompt: "Змішали розчини натрій гідрогенкарбонату (NaHCO₃) та натрій гідроксиду (NaOH). Осаду й газу немає. Знайдіть у склянці лише ті йони, які реально вступають у взаємодію!",
+                ions: [
+                    { id: "i1", label: "Na⁺", charge: "+", active: false },
+                    { id: "i2", label: "HCO₃⁻", charge: "-", active: true },
+                    { id: "i3", label: "Na⁺", charge: "+", active: false },
+                    { id: "i4", label: "OH⁻", charge: "-", active: true }
+                ],
+                evidenceOptions: [
+                    { id: "water", label: "Утворення слабкого електроліту (H₂O)" },
+                    { id: "gas", label: "Виділення газу CO₂↑" },
+                    { id: "precipitate", label: "Випадання осаду Na₂CO₃↓" },
+                    { id: "none", label: "Реакція не відбувається" }
+                ],
+                correctEvidence: "water",
+                visualEffect: {
+                    type: "water",
+                    liquidColor: "rgba(56, 189, 248, 0.35)"
+                },
+                tiles: ["HCO₃⁻", "+", "OH⁻", "=", "CO₃²⁻", "H₂O", "CO₂↑", "2OH⁻", "H⁺", "H₂CO₃", "Na⁺"],
+                correctSequence: ["HCO₃⁻", "+", "OH⁻", "=", "CO₃²⁻", "+", "H₂O"],
+                explanation: "Кисла сіль NaHCO₃ дисоціює на Na⁺ та HCO₃⁻. Гідрогенкарбонат-аніон проявляє кислотні властивості і віддає протон гідроксид-йону: HCO₃⁻ + OH⁻ = CO₃²⁻ + H₂O."
+            },
+            {
+                id: 2,
+                category: "Рівень НМТ • Подвійне осадження",
+                title: "Справа №2: Реакція без жодного йона-спостерігача",
+                prompt: "Злили розчини барій гідроксиду Ba(OH)₂ та купрум(ІІ) сульфату CuSO₄. Уважно перевірте таблицю розчинності для обох продуктів обміну!",
+                ions: [
+                    { id: "i1", label: "Ba²⁺", charge: "+", active: true },
+                    { id: "i2", label: "2OH⁻", charge: "-", active: true },
+                    { id: "i3", label: "Cu²⁺", charge: "+", active: true },
+                    { id: "i4", label: "SO₄²⁻", charge: "-", active: true }
+                ],
+                evidenceOptions: [
+                    { id: "double_precip", label: "Випадання одразу двох осадів (↓↓)" },
+                    { id: "single_precip", label: "Випадання лише одного осаду (↓)" },
+                    { id: "gas_water", label: "Виділення газу та води" },
+                    { id: "none", label: "Реакція не відбувається" }
+                ],
+                correctEvidence: "double_precip",
+                visualEffect: {
+                    type: "precipitate",
+                    color: "#bae6fd",
+                    label: "Подвійний осад: BaSO₄↓ + Cu(OH)₂↓"
+                },
+                tiles: ["Ba²⁺", "+", "SO₄²⁻", "Cu²⁺", "2OH⁻", "=", "BaSO₄↓", "Cu(OH)₂↓", "OH⁻", "CuOH⁺", "H₂O"],
+                correctSequence: ["Ba²⁺", "+", "SO₄²⁻", "+", "Cu²⁺", "+", "2OH⁻", "=", "BaSO₄↓", "+", "Cu(OH)₂↓"],
+                explanation: "Рідкісний випадок для НМТ: повне йонне рівняння збігається зі скороченим! Усі 4 йони зв'язуються у два нерозчинні осади — білий BaSO₄↓ та блакитний Cu(OH)₂↓."
+            },
+            {
+                id: 3,
+                category: "Рівень НМТ • Утворення багатоосновної слабкої кислоти",
+                title: "Справа №3: Повне зв'язування ортофосфат-йонів",
+                prompt: "До розчину натрій ортофосфату (Na₃PO₄) долили надлишок нітратної кислоти (HNO₃). Осаду чи газу не спостерігається. Виділіть йони, що зв'язуються у слабкий електроліт.",
+                ions: [
+                    { id: "i1", label: "3Na⁺", charge: "+", active: false },
+                    { id: "i2", label: "PO₄³⁻", charge: "-", active: true },
+                    { id: "i3", label: "3H⁺", charge: "+", active: true },
+                    { id: "i4", label: "3NO₃⁻", charge: "-", active: false }
+                ],
+                evidenceOptions: [
+                    { id: "weak_acid", label: "Утворення слабкого електроліту (H₃PO₄)" },
+                    { id: "precipitate", label: "Випадання осаду NaNO₃↓" },
+                    { id: "gas", label: "Виділення бурого газу NO₂↑" },
+                    { id: "none", label: "Реакція не відбувається" }
+                ],
+                correctEvidence: "weak_acid",
+                visualEffect: {
+                    type: "water",
+                    liquidColor: "rgba(167, 139, 250, 0.32)"
+                },
+                tiles: ["3H⁺", "+", "PO₄³⁻", "=", "H₃PO₄", "H⁺", "HPO₄²⁻", "H₂PO₄⁻", "2H⁺", "3NO₃⁻"],
+                correctSequence: ["3H⁺", "+", "PO₄³⁻", "=", "H₃PO₄"],
+                explanation: "Ортофосфатна кислота H₃PO₄ у програмі НМТ належить до слабких електролітів, тому в правій частині рівняння вона записується цілою молекулою, а не у вигляді йонів."
+            },
+            {
+                id: 4,
+                category: "Рівень НМТ • Кисла сіль + Луг (осадження)",
+                title: "Справа №4: Усунення тимчасової твердості води",
+                prompt: "Змішали розчини кальцій гідрогенкарбонату Ca(HCO₃)₂ та натрій гідроксиду NaOH (у надлишку 1:2). Уважно визначте, які йони беруть участь у реакції (Na⁺ залишається в розчині!).",
+                ions: [
+                    { id: "i1", label: "Ca²⁺", charge: "+", active: true },
+                    { id: "i2", label: "2HCO₃⁻", charge: "-", active: true },
+                    { id: "i3", label: "2Na⁺", charge: "+", active: false },
+                    { id: "i4", label: "2OH⁻", charge: "-", active: true }
+                ],
+                evidenceOptions: [
+                    { id: "precip_water", label: "Осад CaCO₃↓, вода H₂O та йони CO₃²⁻" },
+                    { id: "gas_water", label: "Виділення газу CO₂↑ та води H₂O" },
+                    { id: "water", label: "Тільки утворення води H₂O" },
+                    { id: "none", label: "Реакція не відбувається" }
+                ],
+                correctEvidence: "precip_water",
+                visualEffect: {
+                    type: "precipitate",
+                    color: "#f8fafc",
+                    label: "Осад: CaCO₃↓"
+                },
+                tiles: ["Ca²⁺", "+", "2HCO₃⁻", "2OH⁻", "=", "CaCO₃↓", "CO₃²⁻", "2H₂O", "H₂O", "HCO₃⁻", "OH⁻", "2CaCO₃↓"],
+                correctSequence: ["Ca²⁺", "+", "2HCO₃⁻", "+", "2OH⁻", "=", "CaCO₃↓", "+", "CO₃²⁻", "+", "2H₂O"],
+                explanation: "Підступне завдання з НМТ! При надлишку NaOH обидва йони HCO₃⁻ перетворюються на CO₃²⁻ і 2H₂O, але один карбонат-йон одразу зв'язується з Ca²⁺ в осад CaCO₃↓, а другий залишається в розчині!"
+            },
+            {
+                id: 5,
+                category: "Рівень НМТ • Гідрогенсульфат як сильна кислота",
+                title: "Справа №5: Реакція двох солей із виділенням газу",
+                prompt: "Змішали розчини натрій гідрогенсульфату (NaHSO₄) та натрій сульфіту (Na₂SO₃). Підказка: у розведеному розчині аніон HSO₄⁻ майже повністю дисоціює на H⁺ та SO₄²⁻!",
+                ions: [
+                    { id: "i1", label: "2Na⁺", charge: "+", active: false },
+                    { id: "i2", label: "2H⁺", charge: "+", active: true },
+                    { id: "i3", label: "2SO₄²⁻", charge: "-", active: false },
+                    { id: "i4", label: "2Na⁺", charge: "+", active: false },
+                    { id: "i5", label: "SO₃²⁻", charge: "-", active: true }
+                ],
+                evidenceOptions: [
+                    { id: "gas_water", label: "Виділення газу SO₂↑ та води H₂O" },
+                    { id: "precipitate", label: "Випадання осаду Na₂SO₄↓" },
+                    { id: "weak_acid", label: "Утворення стійкої кислоти H₂SO₃" },
+                    { id: "none", label: "Реакція не відбувається" }
+                ],
+                correctEvidence: "gas_water",
+                visualEffect: {
+                    type: "gas",
+                    liquidColor: "rgba(56, 189, 248, 0.25)"
+                },
+                tiles: ["2H⁺", "+", "SO₃²⁻", "=", "SO₂↑", "H₂O", "H₂SO₃", "HSO₄⁻", "H⁺", "SO₄²⁻"],
+                correctSequence: ["2H⁺", "+", "SO₃²⁻", "=", "SO₂↑", "+", "H₂O"],
+                explanation: "Натрій гідрогенсульфат NaHSO₄ — сіль сильної сульфатної кислоти, тому в розчині вона створює кисле середовище (дає вільні йони H⁺), які витісняють нестійку H₂SO₃ → SO₂↑ + H₂O."
+            },
+            {
+                id: 6,
+                category: "Рівень НМТ • Перевірка на пастку",
+                title: "Справа №6: Чи відбудеться обмін?",
+                prompt: "У склянці змішали розчини магній нітрату Mg(NO₃)₂ та калій сульфату K₂SO₄. Проаналізуйте всі можливі комбінації йонів за таблицею розчинності.",
+                ions: [
+                    { id: "i1", label: "Mg²⁺", charge: "+", active: false },
+                    { id: "i2", label: "2NO₃⁻", charge: "-", active: false },
+                    { id: "i3", label: "2K⁺", charge: "+", active: false },
+                    { id: "i4", label: "SO₄²⁻", charge: "-", active: false }
+                ],
+                evidenceOptions: [
+                    { id: "none", label: "Реакція не відбувається (усі сполуки розчинні)" },
+                    { id: "precipitate", label: "Випадання осаду MgSO₄↓" },
+                    { id: "gas", label: "Виділення газу NO₂↑" },
+                    { id: "water", label: "Утворення слабкого електроліту" }
+                ],
+                correctEvidence: "none",
+                visualEffect: {
+                    type: "water",
+                    liquidColor: "rgba(14, 165, 233, 0.2)"
+                },
+                tiles: ["Реакція не йде", "Mg²⁺", "+", "SO₄²⁻", "=", "MgSO₄↓", "2K⁺", "2NO₃⁻", "KNO₃↓"],
+                correctSequence: ["Реакція не йде"],
+                explanation: "Пастка на уважність! Можливі продукти обміну — MgSO₄ та KNO₃ — є добре розчинними у воді сильними електролітами. Осаду, газу чи слабкого електроліту не утворюється, тому всі йони залишаються спостерігачами."
+            }
+        ];
+
+        // Стан програми
+        let currentCaseIndex = 0;
+        let currentTool = "select"; // "select" або "cross"
+        let ionStates = {}; // { ionId: 'normal' | 'selected' | 'spectator' }
+        let selectedEvidence = null;
+        let assembledTokens = []; // Масив вибраних плиток для рівняння
+        let currentShuffledTiles = []; // Перемішаний набір плиток для поточної справи
+        let solvedCases = new Set();
+        let soundEnabled = true;
+
+        // Функція випадкового перемішування масиву (алгоритм Фішера — Єйтса)
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Ініціалізація синтезатора звуків (Tone.js)
+        let synth = null;
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                if (!synth) {
+                    synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    synth.volume.value = -8;
+                }
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                if (type === 'pop') {
+                    synth.triggerAttackRelease("C5", "32n");
+                } else if (type === 'cross') {
+                    synth.triggerAttackRelease("A3", "32n");
+                } else if (type === 'success') {
+                    synth.triggerAttackRelease(["C5", "E5", "G5", "B5"], "8n");
+                } else if (type === 'error') {
+                    synth.triggerAttackRelease(["E3", "F3"], "8n");
+                }
+            } catch (e) {
+                // Ігноруємо помилки аудіоконтексту, якщо браузер блокує автозапуск
+            }
+        }
+
+        // Елементи DOM
+        const caseSelectorBar = document.getElementById('caseSelectorBar');
+        const caseBadge = document.getElementById('caseBadge');
+        const caseStatusBadge = document.getElementById('caseStatusBadge');
+        const caseTitle = document.getElementById('caseTitle');
+        const casePrompt = document.getElementById('casePrompt');
+        const ionsArena = document.getElementById('ionsArena');
+        const liquidFill = document.getElementById('liquidFill');
+        const gasContainer = document.getElementById('gasContainer');
+        const precipitateLayer = document.getElementById('precipitateLayer');
+        const precipitateLabel = document.getElementById('precipitateLabel');
+        const evidenceOptionsContainer = document.getElementById('evidenceOptions');
+        const assembledEquationArea = document.getElementById('assembledEquationArea');
+        const equationTilesPool = document.getElementById('equationTilesPool');
+        const feedbackBox = document.getElementById('feedbackBox');
+        const feedbackTitle = document.getElementById('feedbackTitle');
+        const feedbackText = document.getElementById('feedbackText');
+        const checkCaseBtn = document.getElementById('checkCaseBtn');
+        const nextCaseBtn = document.getElementById('nextCaseBtn');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const totalCasesDisplay = document.getElementById('totalCasesDisplay');
+
+        // Ініціалізація гри
+        function initGame() {
+            totalCasesDisplay.textContent = CASES.length;
+            renderCaseNav();
+            loadCase(0);
+            setupEventListeners();
+        }
+
+        // Рендер верхньої панелі вибору справ
+        function renderCaseNav() {
+            caseSelectorBar.innerHTML = '';
+            CASES.forEach((c, idx) => {
+                const isSolved = solvedCases.has(c.id);
+                const isCurrent = idx === currentCaseIndex;
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                    isCurrent
+                        ? 'bg-sky-600 border-sky-400 text-white shadow-md'
+                        : isSolved
+                        ? 'bg-emerald-950/60 border-emerald-600/60 text-emerald-300 hover:bg-emerald-900/60'
+                        : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`;
+                btn.innerHTML = `<span>${isSolved ? '✅' : '🔎'}</span> Справа ${c.id}`;
+                btn.onclick = () => loadCase(idx);
+                caseSelectorBar.appendChild(btn);
+            });
+        }
+
+        // Завантаження конкретної справи
+        function loadCase(index) {
+            currentCaseIndex = index;
+            const currentCase = CASES[index];
+
+            // Скидання стану поточної справи
+            ionStates = {};
+            currentCase.ions.forEach(ion => {
+                ionStates[ion.id] = 'normal';
+            });
+            selectedEvidence = null;
+            assembledTokens = [];
+            currentShuffledTiles = shuffleArray(currentCase.tiles);
+
+            // Оновлення текстових блоків
+            caseBadge.textContent = currentCase.category;
+            caseTitle.textContent = currentCase.title;
+            casePrompt.textContent = currentCase.prompt;
+
+            if (solvedCases.has(currentCase.id)) {
+                caseStatusBadge.textContent = "Справу розкрито ✓";
+                caseStatusBadge.className = "text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+            } else {
+                caseStatusBadge.textContent = "В процесі розслідування";
+                caseStatusBadge.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-400";
+            }
+
+            // Скидання візуальних ефектів склянки
+            resetVisualEffects();
+
+            // Рендер елементів
+            renderIons(currentCase.ions);
+            renderEvidenceOptions(currentCase.evidenceOptions);
+            renderEquationBuilder(currentShuffledTiles);
+
+            // Скидання блоку зворотного зв'язку та кнопок
+            feedbackBox.classList.add('hidden');
+            checkCaseBtn.classList.remove('hidden');
+            nextCaseBtn.classList.add('hidden');
+
+            renderCaseNav();
+        }
+
+        // Очищення візуальних ефектів склянки
+        function resetVisualEffects() {
+            liquidFill.style.background = "linear-gradient(to bottom, rgba(14, 165, 233, 0.2), rgba(37, 99, 235, 0.35))";
+            gasContainer.innerHTML = '';
+            gasContainer.classList.add('hidden');
+            precipitateLayer.classList.add('hidden');
+            precipitateLayer.classList.remove('precipitate-layer');
+        }
+
+        // Рендер йонів у склянці
+        function renderIons(ions) {
+            ionsArena.innerHTML = '';
+            ions.forEach((ion, idx) => {
+                const state = ionStates[ion.id];
+                const bubble = document.createElement('button');
+                bubble.type = 'button';
+
+                // Колір залежно від заряду катіона (+), аніона (-) або молекули води (0)
+                let colorClasses = "from-slate-600 to-slate-700 border-slate-400 text-white";
+                if (ion.charge === "+") {
+                    colorClasses = "from-rose-500/90 to-red-700/90 border-rose-300/70 text-white";
+                } else if (ion.charge === "-") {
+                    colorClasses = "from-blue-500/90 to-indigo-700/90 border-blue-300/70 text-white";
+                } else {
+                    colorClasses = "from-cyan-500/80 to-teal-700/80 border-cyan-200/70 text-white";
+                }
+
+                let stateClasses = "";
+                if (state === 'selected') stateClasses = "ion-selected";
+                if (state === 'spectator') stateClasses = "ion-spectator";
+
+                bubble.className = `ion-bubble relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br ${colorClasses} border-2 flex items-center justify-center shadow-lg chem-font font-extrabold text-sm sm:text-base ${stateClasses}`;
+                bubble.style.animationDelay = `${(idx * 0.7) % 4}s`;
+                bubble.textContent = ion.label;
+
+                bubble.onclick = () => handleIonClick(ion.id);
+                ionsArena.appendChild(bubble);
+            });
+        }
+
+        // Обробка кліку по йону
+        function handleIonClick(ionId) {
+            const currentState = ionStates[ionId];
+            if (currentTool === 'select') {
+                ionStates[ionId] = currentState === 'selected' ? 'normal' : 'selected';
+                playSound('pop');
+            } else {
+                ionStates[ionId] = currentState === 'spectator' ? 'normal' : 'spectator';
+                playSound('cross');
+            }
+            renderIons(CASES[currentCaseIndex].ions);
+        }
+
+        // Рендер варіантів ознаки реакції (Крок 1)
+        function renderEvidenceOptions(options) {
+            evidenceOptionsContainer.innerHTML = '';
+            options.forEach(opt => {
+                const isSelected = selectedEvidence === opt.id;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `w-full text-left px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-medium border transition flex items-center justify-between ${
+                    isSelected
+                        ? 'bg-sky-600/30 border-sky-400 text-white shadow'
+                        : 'bg-slate-800/70 border-slate-700 text-slate-300 hover:bg-slate-800 hover:border-slate-500'
+                }`;
+                btn.innerHTML = `
+                    <span>${opt.label}</span>
+                    <span class="w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-sky-400 bg-sky-400' : 'border-slate-500'}">
+                        ${isSelected ? '<span class="w-1.5 h-1.5 rounded-full bg-slate-950"></span>' : ''}
+                    </span>
+                `;
+                btn.onclick = () => {
+                    selectedEvidence = opt.id;
+                    playSound('pop');
+                    renderEvidenceOptions(options);
+                };
+                evidenceOptionsContainer.appendChild(btn);
+            });
+        }
+
+        // Рендер конструктора скороченого йонного рівняння
+        function renderEquationBuilder(tiles) {
+            // 1. Рендер зібраного рядка
+            assembledEquationArea.innerHTML = '';
+            if (assembledTokens.length === 0) {
+                assembledEquationArea.innerHTML = '<span class="text-xs text-slate-500 italic">Натискайте на блоки нижче (включаючи «+» та «=»), щоб скласти рівняння...</span>';
+            } else {
+                assembledTokens.forEach((token, idx) => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.title = "Натисніть, щоб видалити блок";
+                    const isOperator = token === '+' || token === '=';
+                    chip.className = `px-2.5 py-1 rounded-lg chem-font text-xs sm:text-sm font-bold transition ${
+                        isOperator
+                            ? 'bg-slate-700 text-amber-300 border border-slate-500'
+                            : 'bg-indigo-600 text-white border border-indigo-400 shadow hover:bg-rose-600 hover:border-rose-400'
+                    }`;
+                    chip.textContent = token;
+                    chip.onclick = () => {
+                        assembledTokens.splice(idx, 1);
+                        playSound('cross');
+                        renderEquationBuilder(tiles);
+                    };
+                    assembledEquationArea.appendChild(chip);
+                });
+            }
+
+            // 2. Рендер доступних плиток-цеглинок
+            equationTilesPool.innerHTML = '';
+            tiles.forEach(tileText => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                const isOperator = tileText === '+' || tileText === '=';
+                btn.className = `px-3 py-1.5 rounded-lg chem-font text-xs sm:text-sm font-bold border transition active:scale-95 ${
+                    isOperator
+                        ? 'bg-slate-800 border-amber-500/50 text-amber-300 hover:bg-slate-700'
+                        : 'bg-slate-800/90 border-slate-600 text-slate-200 hover:bg-slate-700 hover:border-sky-400'
+                }`;
+                btn.textContent = tileText;
+                btn.onclick = () => {
+                    assembledTokens.push(tileText);
+                    playSound('pop');
+                    renderEquationBuilder(tiles);
+                };
+                equationTilesPool.appendChild(btn);
+            });
+        }
+
+        // Запуск візуального ефекту у склянці при успішному розв'язанні
+        function triggerBeakerEffect(effect) {
+            if (!effect) return;
+
+            if (effect.liquidColor) {
+                liquidFill.style.background = effect.liquidColor;
+            }
+
+            if (effect.type === 'precipitate') {
+                precipitateLabel.textContent = effect.label || "Осад↓";
+                precipitateLayer.classList.remove('hidden');
+                precipitateLayer.classList.add('precipitate-layer');
+            } else if (effect.type === 'gas') {
+                gasContainer.classList.remove('hidden');
+                gasContainer.innerHTML = '';
+                for (let i = 0; i < 18; i++) {
+                    const p = document.createElement('div');
+                    p.className = 'gas-particle';
+                    const size = Math.floor(Math.random() * 12) + 6;
+                    p.style.width = `${size}px`;
+                    p.style.height = `${size}px`;
+                    p.style.left = `${Math.floor(Math.random() * 84) + 8}%`;
+                    p.style.animationDelay = `${(Math.random() * 2).toFixed(2)}s`;
+                    gasContainer.appendChild(p);
+                }
+            }
+        }
+
+        // Перевірка відповіді учня
+        function validateCase() {
+            const currentCase = CASES[currentCaseIndex];
+
+            // 1. Перевірка виділених активних йонів
+            const activeIons = currentCase.ions.filter(i => i.active);
+            const inactiveIons = currentCase.ions.filter(i => !i.active);
+
+            const allActiveSelected = activeIons.every(i => ionStates[i.id] === 'selected');
+            const noInactiveSelected = inactiveIons.every(i => ionStates[i.id] !== 'selected');
+
+            if (!allActiveSelected || !noInactiveSelected) {
+                showFeedback(
+                    false,
+                    "Перевірте докази у склянці!",
+                    activeIons.length === 0
+                        ? "У цій склянці немає активних йонів — жоден йон не утворює осаду, газу чи води. Зніміть виділення з йонів."
+                        : "Виділіть інструментом 🔍 саме ті частинки, які взаємодіють між собою (не більше і не менше)."
+                );
+                playSound('error');
+                return;
+            }
+
+            // 2. Перевірка обраної ознаки / середовища
+            if (!selectedEvidence) {
+                showFeedback(false, "Не заповнено Крок 1", "Оберіть ознаку перебігу реакції або середовище розчину у протоколі.");
+                playSound('error');
+                return;
+            }
+            if (selectedEvidence !== currentCase.correctEvidence) {
+                showFeedback(false, "Помилка у Кроці 1", "Неправильно визначена ознака реакції або характер середовища. Скористайтеся шпаргалкою розчинності!");
+                playSound('error');
+                return;
+            }
+
+            // 3. Перевірка зібраного скороченого йонного рівняння (незалежно від порядку доданків)
+            if (assembledTokens.length === 0) {
+                showFeedback(false, "Не заповнено Крок 2", "Зберіть скорочене йонне рівняння з плиток у протоколі.");
+                playSound('error');
+                return;
+            }
+            if (!isEquationEquivalent(assembledTokens, currentCase.correctSequence)) {
+                showFeedback(false, "Помилка у рівнянні (Крок 2)", "Перевірте формули йонів/продуктів, знаки «+» та «=», а також коефіцієнти. Можна клікнути по блоку в рядку, щоб прибрати його.");
+                playSound('error');
+                return;
+            }
+
+            // Усе вірно! Автоматично закреслюємо спостерігачів для наочності
+            inactiveIons.forEach(i => {
+                ionStates[i.id] = 'spectator';
+            });
+            renderIons(currentCase.ions);
+
+            // Візуалізація результату реакції у склянці
+            triggerBeakerEffect(currentCase.visualEffect);
+
+            // Збереження прогресу
+            solvedCases.add(currentCase.id);
+            scoreDisplay.textContent = solvedCases.size;
+            caseStatusBadge.textContent = "Справу розкрито ✓";
+            caseStatusBadge.className = "text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+            renderCaseNav();
+
+            // Виведення пояснення
+            showFeedback(true, "Експертизу підтверджено!", currentCase.explanation);
+            playSound('success');
+
+            checkCaseBtn.classList.add('hidden');
+            nextCaseBtn.classList.remove('hidden');
+            nextCaseBtn.innerHTML = solvedCases.size === CASES.length ? 'Завершити <span>🏆</span>' : 'Наступна справа <span>➔</span>';
+        }
+
+        // Перевірка еквівалентності рівняння з урахуванням перестановки доданків у лівій та правій частинах
+        function isEquationEquivalent(userTokens, correctTokens) {
+            if (correctTokens.length === 1) {
+                return userTokens.length === 1 && userTokens[0] === correctTokens[0];
+            }
+            const parseSides = (tokens) => {
+                const eqIdx = tokens.indexOf('=');
+                if (eqIdx === -1 || tokens.lastIndexOf('=') !== eqIdx) return null;
+                const left = tokens.slice(0, eqIdx);
+                const right = tokens.slice(eqIdx + 1);
+                const extractTerms = (side) => {
+                    if (side.length === 0 || side.length % 2 === 0) return null;
+                    const terms = [];
+                    for (let i = 0; i < side.length; i++) {
+                        if (i % 2 === 0) {
+                            if (side[i] === '+' || side[i] === '=') return null;
+                            terms.push(side[i]);
+                        } else if (side[i] !== '+') {
+                            return null;
+                        }
+                    }
+                    return terms.sort();
+                };
+                const leftTerms = extractTerms(left);
+                const rightTerms = extractTerms(right);
+                if (!leftTerms || !rightTerms) return null;
+                return { left: leftTerms, right: rightTerms };
+            };
+
+            const u = parseSides(userTokens);
+            const c = parseSides(correctTokens);
+            if (!u || !c) return false;
+            return JSON.stringify(u.left) === JSON.stringify(c.left) && JSON.stringify(u.right) === JSON.stringify(c.right);
+        }
+
+        // Відображення повідомлення у протоколі
+        function showFeedback(isSuccess, title, text) {
+            feedbackBox.classList.remove('hidden', 'bg-rose-950/60', 'border-rose-500/50', 'text-rose-200', 'bg-emerald-950/60', 'border-emerald-500/50', 'text-emerald-200');
+            if (isSuccess) {
+                feedbackBox.classList.add('bg-emerald-950/60', 'border-emerald-500/50', 'text-emerald-200');
+            } else {
+                feedbackBox.classList.add('bg-rose-950/60', 'border-rose-500/50', 'text-rose-200');
+            }
+            feedbackTitle.textContent = (isSuccess ? "✅ " : "⚠️ ") + title;
+            feedbackText.textContent = text;
+        }
+
+        // Налаштування обробників подій
+        function setupEventListeners() {
+            const toolSelectBtn = document.getElementById('toolSelectBtn');
+            const toolCrossBtn = document.getElementById('toolCrossBtn');
+
+            toolSelectBtn.onclick = () => {
+                currentTool = 'select';
+                toolSelectBtn.className = "flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-sky-600 text-white shadow transition";
+                toolCrossBtn.className = "flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-slate-600 transition";
+            };
+
+            toolCrossBtn.onclick = () => {
+                currentTool = 'cross';
+                toolCrossBtn.className = "flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-rose-600 text-white shadow transition";
+                toolSelectBtn.className = "flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-slate-600 transition";
+            };
+
+            document.getElementById('resetBeakerBtn').onclick = () => {
+                loadCase(currentCaseIndex);
+            };
+
+            document.getElementById('clearEqBuilderBtn').onclick = () => {
+                assembledTokens = [];
+                playSound('cross');
+                renderEquationBuilder(currentShuffledTiles);
+            };
+
+            checkCaseBtn.onclick = validateCase;
+
+            nextCaseBtn.onclick = () => {
+                if (solvedCases.size === CASES.length) {
+                    document.getElementById('finalScoreText').textContent = `${solvedCases.size} з ${CASES.length}`;
+                    document.getElementById('victoryModal').classList.remove('hidden');
+                } else {
+                    const nextIdx = (currentCaseIndex + 1) % CASES.length;
+                    loadCase(nextIdx);
+                }
+            };
+
+            // Модальне вікно шпаргалки
+            const solubilityModal = document.getElementById('solubilityModal');
+            document.getElementById('openSolubilityBtn').onclick = () => solubilityModal.classList.remove('hidden');
+            document.getElementById('closeSolubilityBtn').onclick = () => solubilityModal.classList.add('hidden');
+            document.getElementById('closeSolubilityBtnBottom').onclick = () => solubilityModal.classList.add('hidden');
+
+            // Перезапуск усієї гри
+            document.getElementById('restartAllBtn').onclick = () => {
+                solvedCases.clear();
+                scoreDisplay.textContent = '0';
+                document.getElementById('victoryModal').classList.add('hidden');
+                loadCase(0);
+            };
+
+            // Перемикач звуку
+            const toggleSoundBtn = document.getElementById('toggleSoundBtn');
+            const soundOnIcon = document.getElementById('soundOnIcon');
+            const soundOffIcon = document.getElementById('soundOffIcon');
+            toggleSoundBtn.onclick = () => {
+                soundEnabled = !soundEnabled;
+                soundOnIcon.classList.toggle('hidden', !soundEnabled);
+                soundOffIcon.classList.toggle('hidden', soundEnabled);
+            };
+        }
+
+        // Запуск при завантаженні сторінки
+        window.onload = initGame;
+    </script>
+</body>
+</html>
